@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Background Remover - Behan Inform Tools</title>
+<meta name="description" content="Remove black, white or any solid colour background from logos, text and images, then add a new colour, glitter or scene background. Free, runs in your browser.">
+<style>
+*{box-sizing:border-box}
+:root{--bg:#14102B;--card:#1F1A3D;--ink:#F4F1FF;--mute:#B2ABD6;--acc:#FF5CA8;--acc2:#7C5CFF;--line:#3A3366}
+body{margin:0;background:radial-gradient(900px 500px at 80% -10%,#3b2a7a 0,transparent 60%),var(--bg);color:var(--ink);font:17px/1.55 "Segoe UI",Roboto,Arial,sans-serif;min-height:100vh}
+header{padding:20px 18px 6px;max-width:760px;margin:0 auto}
+header a{color:var(--mute);text-decoration:none;font-weight:600}
+h1{font-size:2rem;line-height:1.15;margin:8px 0 4px;background:linear-gradient(90deg,#fff,#ffb3d6);-webkit-background-clip:text;background-clip:text;color:transparent}
+h2{font-size:1.15rem;margin:0 0 10px}
+p{margin:0 0 10px;color:var(--mute)}
+main{max-width:760px;margin:0 auto;padding:10px 18px 40px;display:grid;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.pvc{position:sticky;top:0;z-index:5;background:#1F1A3Df2;backdrop-filter:blur(6px)}
+.pvw{display:flex;justify-content:center;border-radius:10px;padding:6px}
+.pvw.chk{background:repeating-conic-gradient(#3a3366 0 25%,#2a2450 0 50%) 0 0/18px 18px}
+canvas{max-width:100%;max-height:36vh;width:auto;height:auto;display:block;border-radius:6px}
+input[type=file]{width:100%;color:var(--ink);padding:10px;border:2px dashed var(--acc2);border-radius:12px;background:#17123a}
+input[type=range]{width:100%;accent-color:var(--acc)}
+label{display:block;font-weight:600;margin:10px 0 2px}
+label.c{display:flex;gap:10px;align-items:flex-start;font-weight:500}
+label.c input{width:22px;height:22px;margin-top:3px;accent-color:var(--acc)}
+button{min-height:44px;padding:0 16px;font:700 1rem inherit;font-family:inherit;color:#fff;background:linear-gradient(90deg,var(--acc2),var(--acc));border:0;border-radius:12px;cursor:pointer}
+button:disabled{opacity:.55}
+.seg{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.seg button{background:#2a2450;border:1px solid var(--line);font-weight:600}
+.seg button.on{background:linear-gradient(90deg,var(--acc2),var(--acc));border-color:transparent}
+.sw{display:inline-block;width:22px;height:22px;border-radius:50%;border:2px solid #fff;vertical-align:middle;margin:0 4px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dot{width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;border:2px solid #fff}
+#dl{width:100%;margin-top:10px}
+button:focus-visible,input:focus-visible{outline:3px solid #FFD54A;outline-offset:2px}
+[hidden]{display:none!important}
+</style></head>
+<body>
+<header><a href="index.html">&larr; All tools</a><h1>Background Remover</h1>
+<p>Remove a black, white or any solid background. Your logo, text or picture stays untouched. Then add a new background.</p></header>
+<main>
+<section class="card"><h2>1. Choose your image</h2><input type="file" id="f" accept="image/*"></section>
+
+<section class="card pvc" id="pvc" hidden><div class="pvw chk" id="pvw"><canvas id="pv"></canvas></div>
+<button id="dl">Download PNG</button></section>
+
+<section class="card" id="s2" hidden><h2>2. Remove the background</h2>
+<div class="seg"><button id="mS" class="on">Solid colour</button><button id="mA">AI for people photos</button></div>
+<div id="solid"><p>Detected background: <span class="sw" id="sw"></span> Wrong colour? Tap the background on the picture above.</p>
+<label for="tol">Remove strength: <span id="tv">30</span></label><input type="range" id="tol" min="0" max="120" value="30">
+<label for="soft">Edge softness: <span id="sv">12</span></label><input type="range" id="soft" min="1" max="60" value="12">
+<label class="c"><input type="checkbox" id="all"><span>Remove this colour everywhere, including holes inside letters like O, A, B</span></label></div>
+<div id="ai" hidden><p>For photos of people with a busy background. The first time it downloads an AI model (about 25 MB).</p><button id="ra">Remove with AI</button></div>
+<p id="msg" style="margin-top:10px"></p></section>
+
+<section class="card" id="s3" hidden><h2>3. Add a new background</h2>
+<div class="seg" id="tabs"><button data-t="none" class="on">Transparent</button><button data-t="col">Colour</button><button data-t="glit">Glitter</button><button data-t="scene">Scenes</button><button data-t="img">Your image</button></div>
+<div id="opts"></div></section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+/* Remove a solid colour. Default: only the background connected to the image edge. all=true removes the colour everywhere. */
+function cutSolid(src,W,H,key,tol,soft,all){const o=new Uint8ClampedArray(src),lim=tol+soft,n=W*H;
+const dist=i=>{const j=i*4,a=o[j]-key[0],b=o[j+1]-key[1],c=o[j+2]-key[2];return Math.sqrt(a*a+b*b+c*c)};
+const ap=(i,d)=>{const j=i*4+3,a=d<=tol?0:(d-tol)/soft*255;if(a<o[j])o[j]=a};
+if(all){for(let i=0;i<n;i++){const d=dist(i);if(d<lim)ap(i,d)}return o}
+const v=new Uint8Array(n),st=new Int32Array(n);let sp=0;
+const push=i=>{if(!v[i]){const d=dist(i);if(d<lim){v[i]=1;ap(i,d);st[sp++]=i}else v[i]=2}};
+for(let x=0;x<W;x++){push(x);push((H-1)*W+x)}for(let y=0;y<H;y++){push(y*W);push(y*W+W-1)}
+while(sp){const i=st[--sp],x=i%W,y=(i-x)/W;if(x>0)push(i-1);if(x<W-1)push(i+1);if(y>0)push(i-W);if(y<H-1)push(i+W)}
+return o}
+
+let W,H,sd,key,mode='solid',bg={t:'none'},bgImg=null,aiURL,model,proc,tm;
+const srcC=document.createElement('canvas'),cutC=document.createElement('canvas'),pv=$('#pv'),px=pv.getContext('2d');
+$('#f').onchange=e=>{const f=e.target.files[0];if(!f)return;aiURL=URL.createObjectURL(f);const i=new Image();i.onload=()=>{const s=Math.min(1,1600/Math.max(i.width,i.height));W=srcC.width=cutC.width=pv.width=Math.round(i.width*s);H=srcC.height=cutC.height=pv.height=Math.round(i.height*s);const x=srcC.getContext('2d');x.drawImage(i,0,0,W,H);sd=x.getImageData(0,0,W,H);key=detect();['#s2','#s3','#pvc'].forEach(s=>$(s).hidden=false);setMode('solid');$('#pvc').scrollIntoView({behavior:'smooth'})};i.src=aiURL};
+function detect(){const d=sd.data,m={};const add=(x,y)=>{const i=(y*W+x)*4,k=((d[i]>>4)<<8)|((d[i+1]>>4)<<4)|(d[i+2]>>4),a=m[k]||(m[k]=[0,0,0,0]);a[0]+=d[i];a[1]+=d[i+1];a[2]+=d[i+2];a[3]++};
+const st=Math.max(1,Math.floor(Math.max(W,H)/200));for(let x=0;x<W;x+=st){add(x,0);add(x,H-1)}for(let y=0;y<H;y+=st){add(0,y);add(W-1,y)}
+let b=null;for(const k in m)if(!b||m[k][3]>b[3])b=m[k];return[b[0]/b[3],b[1]/b[3],b[2]/b[3]]}
+function runSolid(){const o=cutSolid(sd.data,W,H,key,+$('#tol').value,+$('#soft').value,$('#all').checked);cutC.getContext('2d').putImageData(new ImageData(o,W,H),0,0);$('#sw').style.background='rgb('+key.map(Math.round)+')';draw()}
+function later(){clearTimeout(tm);tm=setTimeout(runSolid,60)}
+$('#tol').oninput=e=>{$('#tv').textContent=e.target.value;later()};$('#soft').oninput=e=>{$('#sv').textContent=e.target.value;later()};$('#all').onchange=runSolid;
+pv.onclick=e=>{if(mode!=='solid')return;const r=pv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)*W/r.width),y=Math.floor((e.clientY-r.top)*H/r.height),i=(y*W+x)*4;key=[sd.data[i],sd.data[i+1],sd.data[i+2]];runSolid()};
+function setMode(m){mode=m;$('#mS').classList.toggle('on',m==='solid');$('#mA').classList.toggle('on',m==='ai');$('#solid').hidden=m!=='solid';$('#ai').hidden=m!=='ai';$('#msg').textContent='';if(m==='solid')runSolid();else{cutC.getContext('2d').putImageData(sd,0,0);draw()}}
+$('#mS').onclick=()=>setMode('solid');$('#mA').onclick=()=>setMode('ai');
+$('#ra').onclick=async()=>{const m=$('#msg'),b=$('#ra');b.disabled=true;
+try{const T=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3');
+if(!model){m.textContent='Loading the AI model for the first time (about 25 MB). Please wait...';model=await T.AutoModel.from_pretrained('Xenova/modnet',{dtype:'fp32'});proc=await T.AutoProcessor.from_pretrained('Xenova/modnet')}
+m.textContent='Removing background. Please wait...';
+const im=await T.RawImage.fromURL(aiURL),{pixel_values}=await proc(im),{output}=await model({input:pixel_values});
+const mk=await T.RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(W,H),o=new Uint8ClampedArray(sd.data);
+for(let i=0;i<W*H;i++)o[i*4+3]=mk.data[i];cutC.getContext('2d').putImageData(new ImageData(o,W,H),0,0);draw();m.textContent='Done.'}
+catch(e){console.error(e);m.textContent='Something went wrong. Check your internet connection and try again.'}
+b.disabled=false};
+
+/* Backgrounds */
+function poly(x,w,h,p,f){x.fillStyle=f;x.beginPath();p.forEach((q,i)=>i?x.lineTo(q[0]*w,q[1]*h):x.moveTo(q[0]*w,q[1]*h));x.closePath();x.fill()}
+function grad(x,w,h,a,b,y0,y1){const g=x.createLinearGradient(0,y0*h,0,y1*h);g.addColorStop(0,a);g.addColorStop(1,b);x.fillStyle=g;x.fillRect(0,y0*h,w,(y1-y0)*h+1)}
+function rnd(){let s=7;return()=>(s=(s*16807)%2147483647)/2147483647}
+function sparkle(x,w,h){const r=rnd(),u=Math.max(w,h)/700,n=Math.round(w*h/2500);for(let i=0;i<n;i++){const cx=r()*w,cy=r()*h,z=(r()*2.5+.8)*u;x.globalAlpha=.35+r()*.65;x.fillStyle=r()>.5?'#fff':'#ffe9a8';x.beginPath();x.arc(cx,cy,z,0,7);x.fill();if(z>2.2*u){x.fillRect(cx-z*3,cy-z*.3,z*6,z*.6);x.fillRect(cx-z*.3,cy-z*3,z*.6,z*6)}}x.globalAlpha=1}
+const scenes={
+beach(x,w,h){grad(x,w,h,'#5CBBFF','#FFE9C7',0,.55);x.fillStyle='#FFF3B0';x.beginPath();x.arc(w*.75,h*.3,h*.07,0,7);x.fill();grad(x,w,h,'#1E88C9','#59C1E8',.55,.75);grad(x,w,h,'#F2D7A0','#E4BE7C',.75,1);x.strokeStyle='#ffffff99';x.lineWidth=Math.max(2,h/200);for(let i=0;i<5;i++){x.beginPath();x.moveTo(w*(.05+i*.2),h*(.6+i%2*.05));x.quadraticCurveTo(w*(.1+i*.2),h*(.58+i%2*.05),w*(.15+i*.2),h*(.6+i%2*.05));x.stroke()}},
+mountain(x,w,h){grad(x,w,h,'#6FA8FF','#EAF4FF',0,.7);poly(x,w,h,[[0,.62],[.15,.4],[.3,.58],[.5,.32],[.7,.56],[.85,.42],[1,.6],[1,1],[0,1]],'#8EA4C8');poly(x,w,h,[[0,.75],[.2,.5],[.38,.72],[.62,.45],[.85,.7],[1,.58],[1,1],[0,1]],'#4F6A8E');poly(x,w,h,[[.2,.5],[.17,.56],[.19,.55],[.2,.58],[.215,.55],[.23,.56]],'#fff');poly(x,w,h,[[.62,.45],[.585,.51],[.605,.5],[.62,.53],[.64,.5],[.66,.51]],'#fff');grad(x,w,h,'#5DAE5B','#2F7A3E',.85,1)},
+park(x,w,h){grad(x,w,h,'#8FD3FF','#E5F6FF',0,.6);x.fillStyle='#7BC96F';x.beginPath();x.ellipse(w*.3,h,w*.8,h*.4,0,0,7);x.fill();x.fillStyle='#5DB45A';x.beginPath();x.ellipse(w*.8,h*1.02,w*.7,h*.35,0,0,7);x.fill();poly(x,w,h,[[.45,.7],[.55,.7],[.8,1],[.2,1]],'#D9B98A');
+[[.12,.62,1],[.88,.58,1.1],[.3,.66,.8]].forEach(t=>{x.fillStyle='#7A4E2D';x.fillRect(w*t[0]-w*.012,h*t[1],w*.024,h*.12*t[2]);x.fillStyle='#2F8F46';[[0,-.03],[-.04,0],[.04,0]].forEach(c=>{x.beginPath();x.arc(w*(t[0]+c[0]*.8),h*(t[1]+c[1]),h*.07*t[2],0,7);x.fill()})})},
+night(x,w,h){grad(x,w,h,'#0B1033','#3A2A6B',0,1);const r=rnd();x.fillStyle='#fff';for(let i=0;i<w*h/3000;i++){x.globalAlpha=.3+r()*.7;x.beginPath();x.arc(r()*w,r()*h,r()*1.8*Math.max(w,h)/700+.4,0,7);x.fill()}x.globalAlpha=1;x.fillStyle='#FFF6D0';x.beginPath();x.arc(w*.8,h*.2,h*.06,0,7);x.fill()}};
+function paintBg(x,w,h){const t=bg.t;if(t==='col'){x.fillStyle=bg.v;x.fillRect(0,0,w,h)}
+else if(t==='glit'){const g=x.createLinearGradient(0,0,w,h);g.addColorStop(0,bg.v[0]);g.addColorStop(1,bg.v[1]);x.fillStyle=g;x.fillRect(0,0,w,h);if(bg.sp)sparkle(x,w,h)}
+else if(t==='scene')scenes[bg.v](x,w,h);
+else if(t==='img'&&bgImg){const s=Math.max(w/bgImg.width,h/bgImg.height),iw=bgImg.width*s,ih=bgImg.height*s;x.drawImage(bgImg,(w-iw)/2,(h-ih)/2,iw,ih)}}
+function draw(){px.clearRect(0,0,W,H);paintBg(px,W,H);px.drawImage(cutC,0,0);$('#pvw').classList.toggle('chk',bg.t==='none'||(bg.t==='img'&&!bgImg))}
+const sw=['#ffffff','#000000','#ff5ca8','#7c5cff','#22c55e','#f59e0b','#0ea5e9'],gl=[['#FFD76A','#FF9A3C','Gold'],['#FF9AD5','#B96BFF','Pink'],['#5CE1FF','#4B6BFF','Blue'],['#E5E7EB','#9CA3AF','Silver']],sc=[['beach','Beach'],['mountain','Mountain'],['park','Park'],['night','Night sky']];
+function opts(t){const o=$('#opts');
+if(t==='none')o.innerHTML='<p>The background stays transparent. Download as PNG.</p>';
+if(t==='col')o.innerHTML='<div class="row"><input type="color" id="cp" value="#ffffff" aria-label="Pick a colour" style="width:56px;height:44px;border:0;background:none">'+sw.map(c=>'<button class="dot" data-c="'+c+'" style="background:'+c+'" aria-label="'+c+'"></button>').join('')+'</div>';
+if(t==='glit')o.innerHTML='<div class="row">'+gl.map((g,i)=>'<button data-g="'+i+'" style="background:linear-gradient(135deg,'+g[0]+','+g[1]+');color:#111">'+g[2]+'</button>').join('')+'</div><label class="c"><input type="checkbox" id="sp" checked><span>Sparkles</span></label>';
+if(t==='scene')o.innerHTML='<p>Simple illustrated scenes. For a real photo of a park, beach or mountain, use "Your image".</p><div class="row">'+sc.map(s=>'<button data-s="'+s[0]+'">'+s[1]+'</button>').join('')+'</div>';
+if(t==='img')o.innerHTML='<p>Choose any photo to use as the new background.</p><input type="file" id="bf" accept="image/*">';
+}
+$('#tabs').onclick=e=>{const t=e.target.dataset.t;if(!t)return;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b===e.target));opts(t);if(t==='none'){bg={t:'none'};draw()}};
+$('#opts').onclick=e=>{const d=e.target.dataset;if(d.c){bg={t:'col',v:d.c};$('#cp').value=d.c}else if(d.g!==undefined){bg={t:'glit',v:gl[d.g],sp:$('#sp').checked}}else if(d.s)bg={t:'scene',v:d.s};else return;draw()};
+$('#opts').oninput=e=>{if(e.target.id==='cp'){bg={t:'col',v:e.target.value};draw()}};
+$('#opts').onchange=e=>{if(e.target.id==='sp'&&bg.t==='glit'){bg.sp=e.target.checked;draw()}
+if(e.target.id==='bf'){const f=e.target.files[0];if(!f)return;const i=new Image();i.onload=()=>{bgImg=i;bg={t:'img'};draw()};i.src=URL.createObjectURL(f)}};
+opts('none');
+$('#dl').onclick=()=>pv.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='background-changed.png';a.click()},'image/png');
+</script></body></html>
